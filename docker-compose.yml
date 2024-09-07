@@ -1,0 +1,24 @@
+services:
+  s3:
+    image: quay.io/minio/minio:latest
+    command: server /data --console-address ":9001"
+    volumes:
+      - s3data:/data
+    ports:
+      - 9001:9001
+
+  test:
+    build: .
+    command: go test -cover
+    depends_on:
+      - s3
+    init: true
+    volumes:
+      - .:/app
+    working_dir: /app
+    environment:
+      SERVER_ENDPOINT: "s3:9000"
+      ENABLE_HTTPS: false
+
+volumes:
+  s3data:
