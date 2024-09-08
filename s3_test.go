@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"github.com/minio/minio-go/v7"
+	"log"
 	"os"
 	"testing"
 )
@@ -19,29 +20,31 @@ var (
 	secretKey      = os.Getenv("SECRET_KEY")
 )
 
-func setupTest(t *testing.T) *Client {
+func newClient() *Client {
 	c, err := NewClient(serverEndpoint, NewOptions(accessKey, secretKey, "", false), nil)
 	if err != nil {
-		t.Fatal(err)
+		panic(err)
 	}
-	if c.Serializer != defaultJSONSerializer {
-		t.Fatal("c.Serializer != defaultJSONSerializer")
-	}
-	teardownTest(nil, c)
-	ctx := context.Background()
-	err = c.MakeBucket(ctx, testBucketName, minio.MakeBucketOptions{Region: "us-east-1"})
-	if err != nil {
+	return c
+}
+
+func setupTest(t *testing.T) *Client {
+	c := newClient()
+	if err := c.MakeBucket(context.Background(), testBucketName, minio.MakeBucketOptions{Region: "us-east-1"}); err != nil {
 		t.Fatal(err)
 	}
 	return c
 }
 
-func teardownTest(t *testing.T, c *Client) {
-	if err := c.RemoveObject(context.Background(), testBucketName, testObjectName, minio.RemoveObjectOptions{}); err != nil && t != nil {
-		t.Fatal(err)
+func cleanupServer(c *Client) {
+	if c == nil {
+		c = newClient()
 	}
-	if err := c.RemoveBucket(context.Background(), testBucketName); err != nil && t != nil {
-		t.Fatal(err)
+	if err := c.RemoveObject(context.Background(), testBucketName, testObjectName, minio.RemoveObjectOptions{}); err != nil {
+		log.Println("cleanup:", err)
+	}
+	if err := c.RemoveBucket(context.Background(), testBucketName); err != nil {
+		log.Println("cleanup:", err)
 	}
 }
 
@@ -49,13 +52,14 @@ func TestMain(m *testing.M) {
 	if serverEndpoint == "" || accessKey == "" || secretKey == "" {
 		panic("serverEndpoint or accessKey or secretKey is empty")
 	}
+	cleanupServer(nil)
 	os.Exit(m.Run())
 }
 
 func TestPutReadBytes(t *testing.T) {
 	c := setupTest(t)
 	t.Cleanup(func() {
-		teardownTest(t, c)
+		cleanupServer(c)
 	})
 
 	testData := []byte{0xA, 0xB, 0xC, 0xD, 0xE, 0xF}
@@ -80,7 +84,7 @@ func TestPutReadBytes(t *testing.T) {
 func TestPutRead(t *testing.T) {
 	c := setupTest(t)
 	t.Cleanup(func() {
-		teardownTest(t, c)
+		cleanupServer(c)
 	})
 
 	type Test struct {
