@@ -1,11 +1,11 @@
 # Go S3 client
 
-MinIO S3 client with (de)serialization.
+Extended MinIO S3 client with (de)serialization.
 
-Added extra methods:
- - PutBytes, ReadBytes: for more convenient storage of bytes
- - Put, Read: for storage of structs (serialized by JSON/MsgPack/etc...)
- - BucketManager which encapsulates bucket related functionality around specific bucket
+Added extra functionality:
+ - **PutBytes**, **ReadBytes** functions: for more convenient storage of bytes
+ - **Put**, **Read** functions: for storage of structs (serialized in JSON/MsgPack/etc...)
+ - **BucketManager**: for encapsulating functionality around specific bucket
 
 ## Usage
 
@@ -32,16 +32,18 @@ func main() {
 	var accessKey = os.Getenv("ACCESS_KEY")
 	var secretKey = os.Getenv("SECRET_KEY")
 
+	// create client with basic options
 	c, err := s3.NewClient(
 		"localhost:9000",
 		s3.NewOptions(accessKey, secretKey, "", false),
-		msgpack.MsgPackSerializer{}) // use MsgPack serializer instead of default one(JSON)
+		nil) // use default serializer(JSON)
 	if err != nil {
 		panic(err)
 	}
 	ctx := context.Background()
 
-	m := c.NewBucketManager(bucketName, nil) // each BucketManager can use its own serializer, nil == client.Serializer
+	// create BucketManager to simplify working with a single bucket
+	m := c.NewBucketManager(bucketName, msgpack.MsgPackSerializer{}) // use MsgPack serializer for this bucket
 	if err = m.EnsureBucket(ctx, minio.MakeBucketOptions{Region: "us-east-1"}); err != nil {
 		panic(err)
 	}
