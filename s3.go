@@ -82,3 +82,62 @@ func (c *Client) Read(ctx context.Context, bucketName string, objectName string,
 	}
 	return c.Serializer.Deserialize(buf.Bytes(), dst)
 }
+
+func (c *Client) NewBucketManager(bucketName string) *BucketManager {
+	return &BucketManager{
+		Client:     c,
+		BucketName: bucketName,
+	}
+}
+
+type BucketManager struct {
+	Client     *Client
+	BucketName string
+}
+
+func (m *BucketManager) EnsureBucket(ctx context.Context, opts minio.MakeBucketOptions) error {
+	exists, err := m.Client.BucketExists(ctx, m.BucketName)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return nil
+	}
+	return m.Client.MakeBucket(ctx, m.BucketName, opts)
+}
+
+func (m *BucketManager) RemoveBucket(ctx context.Context) error {
+	return m.Client.RemoveBucket(ctx, m.BucketName)
+}
+
+func (m *BucketManager) ListObjects(ctx context.Context, opts minio.ListObjectsOptions) <-chan minio.ObjectInfo {
+	return m.Client.ListObjects(ctx, m.BucketName, opts)
+}
+
+func (m *BucketManager) StatObject(ctx context.Context, objectName string, opts minio.GetObjectOptions) (minio.ObjectInfo, error) {
+	return m.Client.StatObject(ctx, m.BucketName, objectName, opts)
+}
+
+func (m *BucketManager) GetObject(ctx context.Context, objectName string, opts minio.GetObjectOptions) (*minio.Object, error) {
+	return m.Client.GetObject(ctx, m.BucketName, objectName, opts)
+}
+
+func (m *BucketManager) RemoveObject(ctx context.Context, objectName string, opts minio.RemoveObjectOptions) error {
+	return m.Client.RemoveObject(ctx, m.BucketName, objectName, opts)
+}
+
+func (m *BucketManager) PutBytes(ctx context.Context, objectName string, value []byte, opts minio.PutObjectOptions) (minio.UploadInfo, error) {
+	return m.Client.PutBytes(ctx, m.BucketName, objectName, value, opts)
+}
+
+func (m *BucketManager) Put(ctx context.Context, objectName string, value any, opts minio.PutObjectOptions) (minio.UploadInfo, error) {
+	return m.Client.Put(ctx, m.BucketName, objectName, value, opts)
+}
+
+func (m *BucketManager) ReadBytes(ctx context.Context, objectName string, dst io.Writer, opts minio.GetObjectOptions) error {
+	return m.Client.ReadBytes(ctx, m.BucketName, objectName, dst, opts)
+}
+
+func (m *BucketManager) Read(ctx context.Context, objectName string, dst any, opts minio.GetObjectOptions) error {
+	return m.Client.Read(ctx, m.BucketName, objectName, dst, opts)
+}
