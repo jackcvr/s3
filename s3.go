@@ -24,8 +24,6 @@ func (_ JSONSerializer) Deserialize(data []byte, v any) error {
 	return json.Unmarshal(data, v)
 }
 
-var defaultJSONSerializer = JSONSerializer{}
-
 func NewOptions(accessKeyID, secretAccessKey, sessionToken string, secure bool) *minio.Options {
 	return &minio.Options{
 		Creds:  credentials.NewStaticV4(accessKeyID, secretAccessKey, sessionToken),
@@ -44,7 +42,7 @@ func NewClient(endpoint string, opts *minio.Options, serializer Serializer) (*Cl
 		return nil, err
 	}
 	if serializer == nil {
-		serializer = defaultJSONSerializer
+		serializer = JSONSerializer{}
 	}
 	return &Client{
 		Client:     mc,

@@ -96,7 +96,7 @@ func TestPutRead(t *testing.T) {
 		Name:   "TestName",
 		Amount: 12,
 	}
-	testData, err := defaultJSONSerializer.Serialize(testObject)
+	testData, err := c.Serializer.Serialize(testObject)
 	if err != nil {
 		t.Fatal(err)
 	}
