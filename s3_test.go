@@ -28,7 +28,7 @@ func newClient() *Client {
 	return c
 }
 
-func setupTest(t *testing.T) *BucketManager {
+func newBucketManager(t *testing.T) *BucketManager {
 	c := newClient()
 	m := c.NewBucketManager(testBucketName, nil)
 	if err := m.EnsureBucket(context.Background(), minio.MakeBucketOptions{Region: "us-east-1"}); err != nil {
@@ -66,7 +66,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestPutReadBytes(t *testing.T) {
-	m := setupTest(t)
+	m := newBucketManager(t)
 	t.Cleanup(func() {
 		cleanupServer(m.Client)
 	})
@@ -91,7 +91,7 @@ func TestPutReadBytes(t *testing.T) {
 }
 
 func TestPutRead(t *testing.T) {
-	m := setupTest(t)
+	m := newBucketManager(t)
 	t.Cleanup(func() {
 		cleanupServer(m.Client)
 	})
