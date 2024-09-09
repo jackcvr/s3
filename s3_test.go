@@ -30,7 +30,7 @@ func newClient() *Client {
 
 func setupTest(t *testing.T) *BucketManager {
 	c := newClient()
-	m := c.NewBucketManager(testBucketName)
+	m := c.NewBucketManager(testBucketName, nil)
 	if err := m.EnsureBucket(context.Background(), minio.MakeBucketOptions{Region: "us-east-1"}); err != nil {
 		t.Fatal(err)
 	}
@@ -49,10 +49,10 @@ func cleanupServer(c *Client) {
 	if !exists {
 		return
 	}
-	if err := c.RemoveObject(ctx, testBucketName, testObjectName, minio.RemoveObjectOptions{}); err != nil {
+	if err = c.RemoveObject(ctx, testBucketName, testObjectName, minio.RemoveObjectOptions{}); err != nil {
 		log.Println("cleanup:", err)
 	}
-	if err := c.RemoveBucket(ctx, testBucketName); err != nil {
+	if err = c.RemoveBucket(ctx, testBucketName); err != nil {
 		log.Println("cleanup:", err)
 	}
 }

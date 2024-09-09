@@ -41,7 +41,7 @@ func main() {
 	}
 	ctx := context.Background()
 
-	m := c.NewBucketManager(bucketName)
+	m := c.NewBucketManager(bucketName, nil) // each BucketManager can use its own serializer, nil == client.Serializer
 	if err = m.EnsureBucket(ctx, minio.MakeBucketOptions{Region: "us-east-1"}); err != nil {
 		panic(err)
 	}
