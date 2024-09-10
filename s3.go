@@ -50,6 +50,17 @@ func NewClient(endpoint string, opts *minio.Options, serializer Serializer) (*Cl
 	}, nil
 }
 
+func (c *Client) EnsureBucket(ctx context.Context, bucketName string, opts minio.MakeBucketOptions) error {
+	exists, err := c.BucketExists(ctx, bucketName)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return nil
+	}
+	return c.MakeBucket(ctx, bucketName, opts)
+}
+
 func (c *Client) PutBytes(ctx context.Context, bucketName, objectName string, value []byte, opts minio.PutObjectOptions) (minio.UploadInfo, error) {
 	reader := bytes.NewReader(value)
 	return c.PutObject(ctx, bucketName, objectName, reader, reader.Size(), opts)
@@ -91,74 +102,75 @@ func (c *Client) Read(ctx context.Context, bucketName string, objectName string,
 	return ser.Deserialize(buf.Bytes(), dst)
 }
 
-func (c *Client) NewBucketManager(bucketName string, serializer Serializer) *BucketManager {
+func (c *Client) GetBucketClient(bucketName string, serializer Serializer) *BucketClient {
 	if serializer == nil {
 		serializer = c.Serializer
 	}
-	return &BucketManager{
+	return &BucketClient{
 		Client:     c,
 		BucketName: bucketName,
 		Serializer: serializer,
 	}
 }
 
-type BucketManager struct {
+func NewBucketClient(endpoint string, bucketName string, opts *minio.Options, serializer Serializer) (*BucketClient, error) {
+	c, err := NewClient(endpoint, opts, serializer)
+	if err != nil {
+		return nil, err
+	}
+	return c.GetBucketClient(bucketName, serializer), nil
+}
+
+type BucketClient struct {
 	Client     *Client
 	BucketName string
 	Serializer Serializer
 }
 
-func (m *BucketManager) EnsureBucket(ctx context.Context, opts minio.MakeBucketOptions) error {
-	exists, err := m.Client.BucketExists(ctx, m.BucketName)
-	if err != nil {
-		return err
-	}
-	if exists {
-		return nil
-	}
-	return m.Client.MakeBucket(ctx, m.BucketName, opts)
+func (c *BucketClient) EnsureBucket(ctx context.Context, opts minio.MakeBucketOptions) error {
+	return c.Client.EnsureBucket(ctx, c.BucketName, opts)
 }
 
-func (m *BucketManager) RemoveBucket(ctx context.Context) error {
-	return m.Client.RemoveBucket(ctx, m.BucketName)
+func (c *BucketClient) RemoveBucket(ctx context.Context) error {
+	return c.Client.RemoveBucket(ctx, c.BucketName)
 }
 
-func (m *BucketManager) ListObjects(ctx context.Context, opts minio.ListObjectsOptions) <-chan minio.ObjectInfo {
-	return m.Client.ListObjects(ctx, m.BucketName, opts)
+func (c *BucketClient) ListObjects(ctx context.Context, opts minio.ListObjectsOptions) <-chan minio.ObjectInfo {
+	return c.Client.ListObjects(ctx, c.BucketName, opts)
 }
 
-func (m *BucketManager) StatObject(ctx context.Context, objectName string, opts minio.GetObjectOptions) (minio.ObjectInfo, error) {
-	return m.Client.StatObject(ctx, m.BucketName, objectName, opts)
+func (c *BucketClient) StatObject(ctx context.Context, objectName string, opts minio.GetObjectOptions) (minio.ObjectInfo, error) {
+	return c.Client.StatObject(ctx, c.BucketName, objectName, opts)
 }
 
-func (m *BucketManager) GetObject(ctx context.Context, objectName string, opts minio.GetObjectOptions) (*minio.Object, error) {
-	return m.Client.GetObject(ctx, m.BucketName, objectName, opts)
+func (c *BucketClient) GetObject(ctx context.Context, objectName string, opts minio.GetObjectOptions) (*minio.Object, error) {
+	return c.Client.GetObject(ctx, c.BucketName, objectName, opts)
 }
 
-func (m *BucketManager) RemoveObject(ctx context.Context, objectName string, opts minio.RemoveObjectOptions) error {
-	return m.Client.RemoveObject(ctx, m.BucketName, objectName, opts)
+func (c *BucketClient) RemoveObject(ctx context.Context, objectName string, opts minio.RemoveObjectOptions) error {
+	return c.Client.RemoveObject(ctx, c.BucketName, objectName, opts)
 }
 
-func (m *BucketManager) PutBytes(ctx context.Context, objectName string, value []byte, opts minio.PutObjectOptions) (minio.UploadInfo, error) {
-	return m.Client.PutBytes(ctx, m.BucketName, objectName, value, opts)
+func (c *BucketClient) PutBytes(ctx context.Context, objectName string, value []byte, opts minio.PutObjectOptions) (minio.UploadInfo, error) {
+	return c.Client.PutBytes(ctx, c.BucketName, objectName, value, opts)
 }
 
-func (m *BucketManager) Put(ctx context.Context, objectName string, value any, opts minio.PutObjectOptions, s ...Serializer) (minio.UploadInfo, error) {
-	ser := m.Serializer
+func (c *BucketClient) Put(ctx context.Context, objectName string, value any, opts minio.PutObjectOptions, s ...Serializer) (minio.UploadInfo, error) {
+	ser := c.Serializer
 	if len(s) > 0 {
 		ser = s[0]
 	}
-	return m.Client.Put(ctx, m.BucketName, objectName, value, opts, ser)
+	return c.Client.Put(ctx, c.BucketName, objectName, value, opts, ser)
 }
 
-func (m *BucketManager) ReadBytes(ctx context.Context, objectName string, dst io.Writer, opts minio.GetObjectOptions) error {
-	return m.Client.ReadBytes(ctx, m.BucketName, objectName, dst, opts)
+func (c *BucketClient) ReadBytes(ctx context.Context, objectName string, dst io.Writer, opts minio.GetObjectOptions) error {
+	return c.Client.ReadBytes(ctx, c.BucketName, objectName, dst, opts)
 }
 
-func (m *BucketManager) Read(ctx context.Context, objectName string, dst any, opts minio.GetObjectOptions, s ...Serializer) error {
-	ser := m.Serializer
+func (c *BucketClient) Read(ctx context.Context, objectName string, dst any, opts minio.GetObjectOptions, s ...Serializer) error {
+	ser := c.Serializer
 	if len(s) > 0 {
 		ser = s[0]
 	}
-	return m.Client.Read(ctx, m.BucketName, objectName, dst, opts, ser)
+	return c.Client.Read(ctx, c.BucketName, objectName, dst, opts, ser)
 }

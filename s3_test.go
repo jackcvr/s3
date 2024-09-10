@@ -20,39 +20,33 @@ var (
 	secretKey      = os.Getenv("SECRET_KEY")
 )
 
-func newClient() *Client {
-	c, err := NewClient(serverEndpoint, NewOptions(accessKey, secretKey, "", false), nil)
+func newBucketClient() *BucketClient {
+	c, err := NewBucketClient(serverEndpoint, testBucketName, NewOptions(accessKey, secretKey, "", false), nil)
 	if err != nil {
+		panic(err)
+	}
+	if err = c.EnsureBucket(context.Background(), minio.MakeBucketOptions{Region: "us-east-1"}); err != nil {
 		panic(err)
 	}
 	return c
 }
 
-func newBucketManager(t *testing.T) *BucketManager {
-	c := newClient()
-	m := c.NewBucketManager(testBucketName, nil)
-	if err := m.EnsureBucket(context.Background(), minio.MakeBucketOptions{Region: "us-east-1"}); err != nil {
-		t.Fatal(err)
-	}
-	return m
-}
-
-func cleanupServer(c *Client) {
+func cleanupServer(c *BucketClient) {
 	if c == nil {
-		c = newClient()
+		c = newBucketClient()
 	}
 	ctx := context.Background()
-	exists, err := c.BucketExists(ctx, testBucketName)
+	exists, err := c.Client.BucketExists(ctx, testBucketName)
 	if err != nil {
 		panic(err)
 	}
 	if !exists {
 		return
 	}
-	if err = c.RemoveObject(ctx, testBucketName, testObjectName, minio.RemoveObjectOptions{}); err != nil {
+	if err = c.RemoveObject(ctx, testObjectName, minio.RemoveObjectOptions{}); err != nil {
 		log.Println("cleanup:", err)
 	}
-	if err = c.RemoveBucket(ctx, testBucketName); err != nil {
+	if err = c.RemoveBucket(ctx); err != nil {
 		log.Println("cleanup:", err)
 	}
 }
@@ -66,22 +60,22 @@ func TestMain(m *testing.M) {
 }
 
 func TestPutReadBytes(t *testing.T) {
-	m := newBucketManager(t)
+	c := newBucketClient()
 	t.Cleanup(func() {
-		cleanupServer(m.Client)
+		cleanupServer(c)
 	})
 
 	testData := []byte{0xA, 0xB, 0xC, 0xD, 0xE, 0xF}
 
 	t.Run("Test PutBytes", func(t *testing.T) {
-		if _, err := m.PutBytes(context.Background(), testObjectName, testData, minio.PutObjectOptions{}); err != nil {
+		if _, err := c.PutBytes(context.Background(), testObjectName, testData, minio.PutObjectOptions{}); err != nil {
 			t.Fatal(err)
 		}
 	})
 
 	t.Run("Test ReadBytes", func(t *testing.T) {
 		var buf bytes.Buffer
-		if err := m.ReadBytes(context.Background(), testObjectName, &buf, minio.GetObjectOptions{}); err != nil {
+		if err := c.ReadBytes(context.Background(), testObjectName, &buf, minio.GetObjectOptions{}); err != nil {
 			t.Fatal(err)
 		}
 		if !bytes.Equal(buf.Bytes(), testData) {
@@ -91,9 +85,9 @@ func TestPutReadBytes(t *testing.T) {
 }
 
 func TestPutRead(t *testing.T) {
-	m := newBucketManager(t)
+	c := newBucketClient()
 	t.Cleanup(func() {
-		cleanupServer(m.Client)
+		cleanupServer(c)
 	})
 
 	type Test struct {
@@ -105,17 +99,17 @@ func TestPutRead(t *testing.T) {
 		Name:   "TestName",
 		Amount: 12,
 	}
-	testData, err := m.Client.Serializer.Serialize(testObject)
+	testData, err := c.Client.Serializer.Serialize(testObject)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	t.Run("Test Put", func(t *testing.T) {
-		if _, err = m.Put(context.Background(), testObjectName, testObject, minio.PutObjectOptions{}); err != nil {
+		if _, err = c.Put(context.Background(), testObjectName, testObject, minio.PutObjectOptions{}); err != nil {
 			t.Fatal(err)
 		}
 		var buf bytes.Buffer
-		if err = m.ReadBytes(context.Background(), testObjectName, &buf, minio.GetObjectOptions{}); err != nil {
+		if err = c.ReadBytes(context.Background(), testObjectName, &buf, minio.GetObjectOptions{}); err != nil {
 			t.Fatal(err)
 		}
 		if !bytes.Equal(buf.Bytes(), testData) {
@@ -125,7 +119,7 @@ func TestPutRead(t *testing.T) {
 
 	t.Run("Test Read", func(t *testing.T) {
 		obj := Test{}
-		if err = m.Read(context.Background(), testObjectName, &obj, minio.GetObjectOptions{}); err != nil {
+		if err = c.Read(context.Background(), testObjectName, &obj, minio.GetObjectOptions{}); err != nil {
 			t.Fatal(err)
 		}
 		if obj != testObject {

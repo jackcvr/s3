@@ -5,7 +5,7 @@ Extended MinIO S3 client with (de)serialization.
 Added extra functionality:
  - **PutBytes**, **ReadBytes** functions: for more convenient storage of bytes
  - **Put**, **Read** functions: for storage of structs (serialized in JSON/MsgPack/etc...)
- - **BucketManager**: for encapsulating functionality around specific bucket
+ - **BucketClient**: for encapsulating functionality around specific bucket
 
 ## Usage
 
@@ -32,29 +32,29 @@ func main() {
 	var accessKey = os.Getenv("ACCESS_KEY")
 	var secretKey = os.Getenv("SECRET_KEY")
 
-	// create client with basic options
-	c, err := s3.NewClient(
+	// create BucketClient to simplify working with a single bucket
+	c, err := s3.NewBucketClient(
 		"localhost:9000",
+		bucketName,
 		s3.NewOptions(accessKey, secretKey, "", false),
-		nil) // use default serializer(JSON)
+		msgpack.MsgPackSerializer{}) // use MsgPack serializer for this bucket
 	if err != nil {
 		panic(err)
 	}
-	ctx := context.Background()
 
-	// create BucketManager to simplify working with a single bucket
-	m := c.NewBucketManager(bucketName, msgpack.MsgPackSerializer{}) // use MsgPack serializer for this bucket
-	if err = m.EnsureBucket(ctx, minio.MakeBucketOptions{Region: "us-east-1"}); err != nil {
+	ctx := context.Background()
+	// create bucket if it doesn't exist
+	if err = c.EnsureBucket(ctx, minio.MakeBucketOptions{Region: "us-east-1"}); err != nil {
 		panic(err)
 	}
 
 	// Put bytes
-	if _, err = m.PutBytes(ctx, objectName, []byte("test"), minio.PutObjectOptions{}); err != nil {
+	if _, err = c.PutBytes(ctx, objectName, []byte("test"), minio.PutObjectOptions{}); err != nil {
 		panic(err)
 	}
 	// Get bytes
 	var buf bytes.Buffer
-	if err = m.ReadBytes(ctx, objectName, &buf, minio.GetObjectOptions{}); err != nil {
+	if err = c.ReadBytes(ctx, objectName, &buf, minio.GetObjectOptions{}); err != nil {
 		panic(err)
 	}
 	fmt.Println(string(buf.Bytes())) // test
@@ -69,19 +69,19 @@ func main() {
 		Name:   "Test",
 		Amount: 12,
 	}
-	if _, err = m.Put(ctx, objectName, obj, minio.PutObjectOptions{}); err != nil {
+	if _, err = c.Put(ctx, objectName, obj, minio.PutObjectOptions{}); err != nil {
 		panic(err)
 	}
 
 	// Get deserialized struct
 	obj2 := Test{}
-	if err = m.Read(ctx, objectName, &obj2, minio.GetObjectOptions{}); err != nil {
+	if err = c.Read(ctx, objectName, &obj2, minio.GetObjectOptions{}); err != nil {
 		panic(err)
 	}
 	fmt.Printf("%+v\n", obj2) // {Name:Test Amount:12}
 
 	buf.Reset()
-	if err = m.ReadBytes(ctx, objectName, &buf, minio.GetObjectOptions{}); err != nil {
+	if err = c.ReadBytes(ctx, objectName, &buf, minio.GetObjectOptions{}); err != nil {
 		panic(err)
 	}
 	fmt.Println(hex.Dump(buf.Bytes()))
